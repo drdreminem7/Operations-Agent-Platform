@@ -81,7 +81,7 @@ container still listens on its standard internal port, 5432.
 In a separate terminal, start the API:
 
 ```bash
-uv run uvicorn main:app --reload --env-file .env
+uv run uvicorn app.main:app --app-dir src --reload --env-file .env
 ```
 
 The API listens at `http://127.0.0.1:8000`. Open `http://127.0.0.1:8000/docs`
@@ -102,7 +102,7 @@ ignored by Git. For a one-run title override, set `APP_NAME` before starting
 Uvicorn:
 
 ```bash
-APP_NAME="Test Operations API" uv run uvicorn main:app --reload --env-file .env
+APP_NAME="Test Operations API" uv run uvicorn app.main:app --app-dir src --reload --env-file .env
 ```
 
 The example database URL is `postgresql+psycopg://operations:operations@localhost:5433/operations`.
