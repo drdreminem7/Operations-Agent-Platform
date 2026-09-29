@@ -1,34 +1,56 @@
 name: CI
 
 on:
-  push:
-  pull_request:
+    push:
+    pull_request:
 
 jobs:
-  quality:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+    quality:
+        runs-on: ubuntu-latest
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+        env:
+            DATABASE_URL: postgresql+psycopg://operations:operations@localhost:5433/operations
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
+        services:
+            postgres:
+                image: postgres:17-alpine
+                env:
+                    POSTGRES_DB: operations
+                    POSTGRES_USER: operations
+                    POSTGRES_PASSWORD: operations
+                ports:
+                    - "5433:5432"
+                options: >-
+                    --health-cmd "pg_isready -U operations -d operations"
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
 
-      - name: Install locked dependencies
-        run: uv sync --locked
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v4
 
-      - name: Lint
-        run: uv run ruff check .
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
 
-      - name: Type check
-        run: uv run mypy
+            - name: Set up uv
+              uses: astral-sh/setup-uv@v6
+              with:
+                  enable-cache: true
 
-      - name: Run tests
-        run: uv run pytest
+            - name: Install locked dependencies
+              run: uv sync --locked
+
+            - name: Lint
+              run: uv run ruff check .
+
+            - name: Type check
+              run: uv run mypy
+
+            - name: Apply database migrations
+              run: uv run alembic upgrade head
+
+            - name: Run tests
+              run: uv run pytest
