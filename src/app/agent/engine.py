@@ -15,6 +15,7 @@ from ..tools.errors import ToolExecutionError
 from ..tools.executor import ToolExecutor
 from ..tools.result import ToolResult
 from .decision_provider import ActionProposal, ToolRequest
+from .evidence import supports_rollback
 from .provider import DecisionProvider
 from .repository import AgentRunRepository
 from .run import AgentRun
@@ -244,6 +245,19 @@ class AgentEngine:
                 service=run.service,
                 evidence=run.tool_results,
             )
+            rejected_action: str | None = None
+            if proposal.action == "rollback_deployment":
+                version = proposal.arguments.get("version")
+                if not isinstance(version, str) or not supports_rollback(
+                    run.tool_results, service=run.service, version=version
+                ):
+                    rejected_action = proposal.action
+                    proposal = ActionProposal(
+                        action="escalate",
+                        arguments={"service": run.service},
+                        reason="Rollback lacks corroborating service evidence.",
+                        trace=proposal.trace,
+                    )
             if proposal.action == "escalate":
                 next_state = RunState.ESCALATED
                 requires_approval = False
@@ -278,6 +292,7 @@ class AgentEngine:
                     "policy_outcome": policy_outcome,
                     "policy_reason": policy_reason,
                     "decision_trace": self._decision_trace(proposal),
+                    **({"rejected_action": rejected_action} if rejected_action else {}),
                 },
             )
             run.action_proposal = proposal

@@ -3,6 +3,7 @@ from typing import Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..tools.result import ToolResult
+from .evidence import supports_rollback
 
 ToolName = Literal[
     "get_service_health",
@@ -151,24 +152,6 @@ class DeterministicDecisionProvider:
         incident_text = title.casefold()
 
         if "deploy" in incident_text:
-            if "latency" in incident_text:
-                health_is_degraded = any(
-                    result.tool_name == "get_service_health"
-                    and result.output.get("status") == "degraded"
-                    for result in evidence
-                )
-                logs_show_errors = any(
-                    result.tool_name == "search_logs"
-                    and isinstance(result.output.get("matches"), list)
-                    and bool(result.output["matches"])
-                    for result in evidence
-                )
-                if not health_is_degraded or not logs_show_errors:
-                    return ActionProposal(
-                        action="escalate",
-                        arguments={"service": service},
-                        reason="The evidence does not support an automatic rollback.",
-                    )
             for result in evidence:
                 if result.tool_name != "get_recent_deployments":
                     continue
@@ -189,6 +172,11 @@ class DeterministicDecisionProvider:
 
                     version = deployment.get("version")
                     if not isinstance(version, str):
+                        continue
+
+                    if not supports_rollback(
+                        evidence, service=service, version=version
+                    ):
                         continue
 
                     return ActionProposal(

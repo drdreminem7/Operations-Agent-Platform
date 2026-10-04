@@ -94,7 +94,7 @@ def test_combined_incident_requests_distinct_evidence_in_order() -> None:
         evidence.append(ToolResult(tool_name=request.tool_name, output={}))
 
 
-def test_recent_production_deployment_proposes_rollback_for_approval() -> None:
+def test_deployment_alone_does_not_justify_rollback() -> None:
     provider = DeterministicDecisionProvider()
     evidence = [
         ToolResult(
@@ -122,12 +122,9 @@ def test_recent_production_deployment_proposes_rollback_for_approval() -> None:
     )
 
     assert proposal == ActionProposal(
-        action="rollback_deployment",
-        arguments={"service": "checkout", "version": "2.4.1"},
-        reason=(
-            "A recent production deployment exists and the incident mentions "
-            "a deployment; propose rollback for human review."
-        ),
+        action="escalate",
+        arguments={"service": "checkout"},
+        reason="The simulated evidence is insufficient to safely act.",
     )
 
 

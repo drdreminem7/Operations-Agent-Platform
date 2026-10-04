@@ -12,7 +12,7 @@ For each milestone:
 4. Run the relevant tests and quality checks.
 5. Record important decisions, surprises, and remaining limitations in `docs/learning-log.md`.
 
-File paths marked **planned** are suggested homes for future work. They do not necessarily exist yet; adjust them when the future design is reviewed. The repository has the functional incident path through Milestone 11's observability layer and an initial Milestone 12 evaluation set. See the [engineering journal](engineering-journal.md) for the actual file-by-file record and verified limitations; Milestone 12 is in progress and Milestone 13 onward remains roadmap.
+File paths marked **planned** are suggested homes for future work. They do not necessarily exist yet; adjust them when the future design is reviewed. The repository has the functional incident path through Milestone 11's observability layer, a 20-case Milestone 12 evaluation set, a Milestone 13 regression gate, and initial Milestone 14 fault profiles. See the [engineering journal](engineering-journal.md) for the actual file-by-file record and verified limitations. The later milestones remain roadmap.
 
 ## The system in one picture
 
@@ -280,35 +280,37 @@ The Gemini provider, policy, approval records, simulated side-effect tools, cras
 
 **Purpose:** Measure agent quality on fixed scenarios instead of relying on anecdotes or subjective impressions.
 
-**Files built:** `evals/scenarios/*.json` holds eight complete fixtures; `src/app/evaluation/scenario.py` validates and loads them; `runner.py` seeds an isolated simulator and grades the actual agent; `metrics.py` aggregates observed measurements; `__main__.py` prints a JSON report; `src/app/tools/simulator.py`, `search_logs.py`, and `defaults.py` share seeded logs. `docs/evaluation.md` explains labels, metrics, and limits. The planned 20 genuinely distinct cases are still outstanding.
+**Files built:** `evals/scenarios/*.json` holds 20 complete fixtures; `src/app/evaluation/scenario.py` validates and loads them; `runner.py` seeds an isolated simulator and grades the actual agent; `metrics.py` aggregates observed measurements; `__main__.py` prints a JSON report; `src/app/tools/simulator.py`, `search_logs.py`, and `defaults.py` share seeded logs. `docs/evaluation.md` explains labels, metrics, and limits. Root-cause accuracy, cost, and recovery rates remain unmeasured rather than fabricated.
 
 **Tests:** `tests/test_evaluation_scenarios.py` checks schema and dataset integrity; `tests/test_evaluation_runner.py` checks isolation, metrics, and the deliberately failing safety scenario.
 
 **Workflow:** load scenario -> seed simulator -> execute agent -> collect trace/actions/outcome -> score objective measures and human-reviewed criteria -> generate comparable report.
 
-**Explain:** ground truth vs evaluator judgment; scenario coverage/quality; success, unsafe-action, tool-use, latency, and cost metrics; why an LLM judge is not automatically ground truth; why the current 7/8 baseline reveals an unsafe rollback and why unmeasured values remain null.
+**Explain:** ground truth vs evaluator judgment; scenario coverage/quality; success, unsafe-action, tool-use, latency, and cost metrics; why an LLM judge is not automatically ground truth; how the current 20/20 baseline guards against a rollback without corroborating evidence and why unmeasured values remain null.
 
 ---
 
-## Milestone 13 — Evaluation regression gate (planned)
+## Milestone 13 — Evaluation regression gate (implemented for deterministic scenarios)
 
 **Purpose:** Prevent prompt/model/tool/state changes from silently degrading agent behavior.
 
-**Suggested files (planned):** `.github/workflows/evaluation.yml` or an extension of CI; `scripts/run_evals.py`; `evals/baselines/` versioned baseline reports; `docs/evaluation-regressions.md` for thresholds and interpretation.
+**Files:** `evals/baseline.json` lists reviewed IDs and thresholds; `src/app/evaluation/gate.py` validates and compares them; `__main__.py` exposes `--baseline`; `.github/workflows/ci.yml` enforces the comparison and uploads its report; `tests/test_evaluation_gate.py` checks missing cases and quality/safety regressions; `docs/evaluation.md` explains interpretation.
 
 **Workflow:** code/model/prompt change -> run fixed evaluation set -> compare candidate to baseline -> fail or request review when meaningful thresholds regress -> publish the report as CI artifact.
 
 **Explain:** why fixed and versioned test data matters; metric noise and thresholds; why compare safety separately from success/latency/cost; what a regression gate does not guarantee.
 
+The current gate covers only 20 deterministic simulator cases. It does not prove the live Gemini path or production safety.
+
 ---
 
-## Milestone 14 — Realistic incident simulator (planned)
+## Milestone 14 — Realistic incident simulator (in progress)
 
 **Purpose:** Produce correlated, controllable service data so incident investigations test reasoning rather than hard-coded happy paths.
 
-**Suggested files (planned):** `src/app/simulator/` modules for services, events, metrics, deployments, dependencies, and scenario seeding; `src/app/tools/` adapters query simulator state; `evals/scenarios/` for fault families including bad deployment, database saturation, dependency failure, CPU/memory, configuration, feature flags, worker backlog, rate limiting, and false alarms.
+**Files built:** `src/app/tools/simulator.py` now contains nine service states, a dependency graph, synthetic metrics, ten fault profiles, and rollback behavior that heals only a deployment-caused fault. `src/app/evaluation/scenario.py` accepts a fault fixture; `runner.py` injects it into an isolated simulator; `evals/scenarios/09-*.json` through `20-*.json` exercise the fault families and adversarial evidence. Metrics and dependencies are not yet available as separate agent tools, and the provider does not predict structured root causes.
 
-**Tests (planned):** simulator determinism, scenario setup, cross-signal consistency, and expected recovery tests under `tests/test_simulator_*.py`.
+**Tests:** `tests/test_simulator_faults.py` covers cross-signal consistency, rollback recovery, unrelated-fault persistence, false alarms, and invalid setup. Evaluation tests check the 20-case set and its gate.
 
 **Workflow:** scenario declares cause and initial conditions -> simulator creates realistic signals -> tools expose bounded evidence -> agent investigates -> simulated action changes environment -> verification reads resulting signals.
 
@@ -316,13 +318,13 @@ The Gemini provider, policy, approval records, simulated side-effect tools, cras
 
 ---
 
-## Milestone 15 — Security pass (planned)
+## Milestone 15 — Security pass (in progress)
 
 **Purpose:** Threat-model and mitigate realistic abuse across API, model, tools, approvals, data, and dependencies.
 
-**Suggested files (planned):** `docs/security.md` threat model; auth/rate limit modules under `src/app/security/`; API dependencies for identity/authorization; redaction and input limits; dependency/security scanning in CI; migrations only when security/audit persistence needs schema changes.
+**Files built:** `docs/security.md` records trust boundaries, threats, mitigations, and residual risks; `src/app/security.py` protects incident/run/metrics endpoints with an optional shared key; `main.py` installs that middleware; `schemas.py` limits incident descriptions; `.env.example` lists the new setting; `tests/test_security.py` checks key enforcement and input bounds. This is not individual identity, rate limiting, dependency scanning, or public-deployment security.
 
-**Tests (planned):** `tests/security/` for tenant/object access, approval tampering/replay, prompt injection, resource exhaustion, secret redaction, and SQL/API input safety.
+**Tests:** `tests/test_security.py` covers the optional API gate and description limits. Earlier approval, policy, telemetry, and evaluation tests cover replay/tampering, authorization, secret exclusion, and one adversarial log case. Tenant isolation is not implemented.
 
 **Workflow:** identify assets/trust boundaries/threats -> define mitigations -> enforce at server-side boundaries -> adversarial tests -> document residual risks.
 
@@ -330,11 +332,11 @@ The Gemini provider, policy, approval records, simulated side-effect tools, cras
 
 ---
 
-## Milestone 16 — Performance baseline (planned)
+## Milestone 16 — Performance baseline (in progress)
 
 **Purpose:** Establish repeatable measurements before attempting optimizations.
 
-**Suggested files (planned):** `benchmarks/` workload scripts and datasets; `docs/performance.md` with machine/configuration/results; optional profiling scripts under `scripts/`.
+**Files built:** `src/app/benchmarks/control_plane.py` measures serial in-process health, readiness, pooled database, and deterministic agent paths and emits machine/sample/CPU/RSS metadata. `tests/test_control_plane_benchmark.py` checks percentile and no-database operation. `docs/performance.md` records one measured local baseline and limitations. Concurrent worker throughput, live model latency, and a before/after optimization experiment remain unmeasured.
 
 **Workflow:** define control-plane and end-to-end workload -> fix environment and concurrency -> collect p50/p95/p99, throughput, CPU/memory/DB use -> archive raw results and methodology.
 
@@ -342,11 +344,11 @@ The Gemini provider, policy, approval records, simulated side-effect tools, cras
 
 ---
 
-## Milestone 17 — Fault injection (planned)
+## Milestone 17 — Fault injection (in progress)
 
 **Purpose:** Check that known failures produce controlled, observable, recoverable outcomes.
 
-**Suggested files (planned):** `tests/faults/` for model, tool, database, worker, network, duplicate request, and concurrent-run failures; test adapters/fakes under `tests/support/`; expand `docs/failure-model.md` with expected behavior.
+**Files built:** `tests/test_fault_injection.py` injects a one-time provider timeout, read-tool timeout, malformed tool result, and database-readiness failure. `tests/test_vllm_provider.py` adds mocked 429/500, connection failure, malformed JSON, and partial/empty response cases; provider configuration rejects non-finite timeouts. Existing crash-recovery, approval, queue, Gemini adapter, and worker tests cover other modeled windows. `docs/failure-model.md` maps these cases to expected behavior and lists untested real process/network failures.
 
 **Workflow:** inject one failure at a named boundary -> observe persisted state and returned error -> restart/retry if relevant -> assert no unauthorized action, silent corruption, or infinite loop.
 
@@ -354,11 +356,11 @@ The Gemini provider, policy, approval records, simulated side-effect tools, cras
 
 ---
 
-## Milestone 18 — Compare runtime with LangGraph (planned)
+## Milestone 18 — Compare runtime with LangGraph (isolated experiment)
 
 **Purpose:** Make an informed framework decision after understanding the workflow and persistence problems in your own implementation.
 
-**Suggested files (planned):** an isolated `experiments/langgraph/` implementation and `docs/runtime-comparison.md`; avoid replacing production code until comparison shows a benefit.
+**Files built:** `src/app/experiments/langgraph_workflow.py` contains an isolated graph using the existing policy, typed executor, and deterministic provider; it checkpoints in memory and exercises pause/approve/deny/verification. `tests/test_langgraph_experiment.py` verifies the workflow. `pyproject.toml` and `uv.lock` hold LangGraph in an optional `experiment` group; CI installs that group for the test. `docs/runtime-comparison.md` compares graph and custom runtime boundaries. The graph is not the API implementation and its in-memory checkpoint is not process-durable.
 
 **Workflow:** implement same scenario in isolated graph -> compare checkpoint, interrupt/resume, persistence, recovery, complexity, and operational control -> document what framework owns and what remains yours.
 
@@ -366,11 +368,11 @@ The Gemini provider, policy, approval records, simulated side-effect tools, cras
 
 ---
 
-## Milestone 19 — Model routing (planned)
+## Milestone 19 — Model routing (in progress)
 
 **Purpose:** Route work among model tiers based on measured quality, latency, and cost—not trendiness.
 
-**Suggested files (planned):** `src/app/agent/model_router.py` for routing rules; provider config and policy; routing evaluation scenarios; `docs/model-routing.md` for results.
+**Files built:** `src/app/agent/model_router.py` routes read-tool choice and action planning to separate providers, falls back to deterministic reads on known provider errors, and escalates on planning-provider failure. `src/app/agent/providers/factory.py` builds two separately configured Gemini models in `routed` mode; `.env.example` names the settings. `tests/test_model_router.py` and `tests/test_provider_factory.py` verify routing and configuration; `docs/model-routing.md` explains the unmeasured quality/cost trade-off. A live head-to-head evaluation still requires valid model access and billed usage data.
 
 **Workflow:** classify bounded task -> choose eligible provider -> fallback only under explicit policy -> record model/cost/latency -> compare quality through evaluation.
 
@@ -378,11 +380,11 @@ The Gemini provider, policy, approval records, simulated side-effect tools, cras
 
 ---
 
-## Milestone 20 — Self-hosted model with vLLM (planned)
+## Milestone 20 — Self-hosted model with vLLM (adapter built; live run pending)
 
 **Purpose:** Compare local inference with cloud providers and learn serving constraints, only after the provider boundary and evaluation suite exist.
 
-**Suggested files (planned):** provider adapter/config in `src/app/agent/providers/`; local serving configuration in `ops/vllm/` or Compose; `docs/local-inference.md`; benchmarks for time-to-first-token, tokens/second, memory, and decision quality.
+**Files built:** `src/app/agent/providers/vllm.py` implements an asynchronous JSON-schema chat-completions adapter with URL/auth guardrails, response validation, timeout mapping, and token metadata. `providers/gemini.py` exposes a shared structured-decision parser while preserving the Gemini class; `providers/factory.py` adds `vllm` selection; `.env.example` lists settings; `httpx` is a direct dependency. `tests/test_vllm_provider.py` uses a mock transport. `docs/self-hosted-model.md` records the unmeasured live-serving work and security boundary. No GPU server, selected model, or live cloud/local comparison has been run.
 
 **Workflow:** deploy model service locally -> connect via existing provider interface -> run identical evaluations/workloads -> record hardware, security boundary, reliability, and quality results.
 
@@ -416,11 +418,11 @@ The Gemini provider, policy, approval records, simulated side-effect tools, cras
 
 ---
 
-## Optional Milestone 23 — Deployment (planned)
+## Optional Milestone 23 — Local Compose deployment (built; cloud deployment pending)
 
 **Purpose:** Operate the application outside a developer laptop with managed configuration, health checks, database migrations, logs, and rollback planning.
 
-**Suggested files (planned):** `Dockerfile`; deployment manifests/config under `deploy/` or platform-specific directory; CI build/publish workflow; `docs/deployment.md`; migration release procedure. Add Kubernetes only after a simpler deployment is understood and justified.
+**Files built:** `Dockerfile` packages the locked runtime and application without development dependencies; `.dockerignore` excludes local environment, tests, and Git history; `docker-compose.yml` starts PostgreSQL, a one-shot Alembic migration job, the API, and a worker with readiness ordering; `compose.smoke.yml` uses a fresh isolated database and no published host ports for the CI deployment check; `docs/deployment.md` describes startup, rollback caveats, and security limits. A cloud target, registry, image publishing, managed database, and live production verification are still pending.
 
 **Workflow:** build immutable image -> scan/test -> configure secrets externally -> provision database -> apply migrations in controlled release -> start service/worker -> health-check/observe -> rollback safely when needed.
 

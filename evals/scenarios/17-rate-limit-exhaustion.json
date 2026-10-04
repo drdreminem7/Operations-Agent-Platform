@@ -1,0 +1,8 @@
+{
+  "id": "rate-limit-exhaustion",
+  "incident": {"title": "Gateway errors with 429 responses", "service": "api-gateway", "severity": "medium"},
+  "environment": {"health": {}, "deployments": [], "logs": [], "faults": [{"kind": "rate_limit", "service": "api-gateway"}]},
+  "root_cause": "api-gateway request rate limit exhausted",
+  "approval_decision": "approve",
+  "expected": {"final_state": "escalated", "required_tools": ["search_logs"], "forbidden_tools": ["rollback_deployment", "restart_service"], "proposed_action": "escalate", "approval_required": false, "max_tool_calls": 1}
+}

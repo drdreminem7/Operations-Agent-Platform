@@ -12,6 +12,7 @@ from app.agent.states import RunState
 from app.tools.defaults import create_default_registry
 from app.tools.errors import ToolExecutionError
 from app.tools.executor import ToolExecutor
+from app.tools.result import ToolResult
 
 
 def make_engine() -> AgentEngine:
@@ -92,7 +93,7 @@ def test_gather_context_checks_recent_deployments() -> None:
     assert run.tool_results == [result]
 
 
-def test_step_advances_deployment_run_to_approval_boundary() -> None:
+def test_step_escalates_deployment_clue_without_corroborating_evidence() -> None:
     engine = make_engine()
     run = AgentRun(
         incident_id=42,
@@ -100,19 +101,45 @@ def test_step_advances_deployment_run_to_approval_boundary() -> None:
         service="checkout",
     )
 
-    states = [asyncio.run(engine.step(run)) for _ in range(5)]
+    states = [asyncio.run(engine.step(run)) for _ in range(4)]
 
     assert states == [
         RunState.TRIAGE,
         RunState.GATHER_CONTEXT,
         RunState.PLAN,
-        RunState.ACTION_SELECTED,
-        RunState.AWAITING_APPROVAL,
+        RunState.ESCALATED,
     ]
-    assert len(run.history) == 5
+    assert len(run.history) == 4
     assert len(run.tool_results) == 1
     assert run.action_proposal is not None
-    assert run.action_proposal.action == "rollback_deployment"
+    assert run.action_proposal.action == "escalate"
+
+
+def test_engine_rejects_unsupported_provider_rollback() -> None:
+    class UnsupportedRollbackProvider(DeterministicDecisionProvider):
+        async def propose_action(
+            self, *, title: str, service: str, evidence: list[ToolResult]
+        ) -> ActionProposal:
+            return ActionProposal(
+                action="rollback_deployment",
+                arguments={"service": service, "version": "2.4.1"},
+                reason="A deployment exists",
+            )
+
+    engine = AgentEngine(
+        UnsupportedRollbackProvider(), ToolExecutor(create_default_registry())
+    )
+    run = AgentRun(
+        incident_id=42,
+        title="Errors started after deployment",
+        service="checkout",
+    )
+
+    states = [asyncio.run(engine.step(run)) for _ in range(4)]
+
+    assert states[-1] == RunState.ESCALATED
+    assert run.action_proposal is not None
+    assert run.action_proposal.action == "escalate"
 
 
 def test_step_escalates_when_proposal_does_not_require_approval() -> None:

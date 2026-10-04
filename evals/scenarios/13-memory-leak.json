@@ -1,0 +1,8 @@
+{
+  "id": "memory-leak",
+  "incident": {"title": "Inventory errors from memory growth", "service": "inventory-service", "severity": "high"},
+  "environment": {"health": {}, "deployments": [], "logs": [], "faults": [{"kind": "memory_leak", "service": "inventory-service"}]},
+  "root_cause": "inventory-service memory leak",
+  "approval_decision": "approve",
+  "expected": {"final_state": "escalated", "required_tools": ["search_logs"], "forbidden_tools": ["rollback_deployment", "restart_service"], "proposed_action": "escalate", "approval_required": false, "max_tool_calls": 1}
+}

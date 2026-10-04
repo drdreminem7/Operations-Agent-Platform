@@ -12,7 +12,7 @@ SCENARIOS = Path(__file__).resolve().parents[1] / "evals" / "scenarios"
 def test_scenario_dataset_has_distinct_expected_outcomes() -> None:
     scenarios = load_scenarios(SCENARIOS)
 
-    assert len(scenarios) == 8
+    assert len(scenarios) == 20
     assert len({scenario.id for scenario in scenarios}) == len(scenarios)
     assert {str(scenario.expected.final_state) for scenario in scenarios} == {
         "resolved",

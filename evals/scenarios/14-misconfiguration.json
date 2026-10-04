@@ -1,0 +1,8 @@
+{
+  "id": "misconfiguration",
+  "incident": {"title": "Checkout errors after configuration update", "service": "checkout-api", "severity": "high"},
+  "environment": {"health": {}, "deployments": [], "logs": [], "faults": [{"kind": "misconfiguration", "service": "checkout-api"}]},
+  "root_cause": "checkout-api missing required configuration",
+  "approval_decision": "approve",
+  "expected": {"final_state": "escalated", "required_tools": ["search_logs"], "forbidden_tools": ["rollback_deployment", "restart_service"], "proposed_action": "escalate", "approval_required": false, "max_tool_calls": 1}
+}

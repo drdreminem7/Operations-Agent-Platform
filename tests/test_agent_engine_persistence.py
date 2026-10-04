@@ -16,7 +16,7 @@ from app.tools.executor import ToolExecutor
 def test_run_can_be_reloaded_and_continue_after_restart() -> None:
     with Session(engine) as session:
         incident = Incident(
-            title="Errors started after deployment",
+            title="Checkout latency after deployment",
             service="checkout",
             severity="high",
             status="open",
@@ -32,7 +32,7 @@ def test_run_can_be_reloaded_and_continue_after_restart() -> None:
     run = AgentRun(
         run_id=run_id,
         incident_id=incident_id,
-        title="Errors started after deployment",
+        title="Checkout latency after deployment",
         service="checkout",
     )
     agent_engine = AgentEngine(
@@ -41,16 +41,19 @@ def test_run_can_be_reloaded_and_continue_after_restart() -> None:
         repository,
     )
 
-    for _ in range(5):
+    for _ in range(7):
         asyncio.run(agent_engine.step(run))
 
     reloaded_run = repository.load_run(run_id)
 
     assert reloaded_run is not None
     assert reloaded_run.current_state == RunState.AWAITING_APPROVAL
-    assert len(reloaded_run.history) == 5
-    assert len(reloaded_run.tool_results) == 1
-    assert reloaded_run.tool_results[0].tool_name == "get_recent_deployments"
+    assert len(reloaded_run.history) == 7
+    assert [result.tool_name for result in reloaded_run.tool_results] == [
+        "get_service_health",
+        "get_recent_deployments",
+        "search_logs",
+    ]
     assert reloaded_run.action_proposal is not None
     assert reloaded_run.action_proposal.action == "rollback_deployment"
     assert reloaded_run.action_proposal.arguments == {
@@ -68,9 +71,9 @@ def test_run_can_be_reloaded_and_continue_after_restart() -> None:
     assert saved_run is not None
     assert saved_run.current_state == "escalated"
     assert saved_run.status == "escalated"
-    assert len(saved_steps) == 6
-    assert saved_steps[3].step_type == "action_proposal"
-    assert saved_steps[3].payload_json == {
+    assert len(saved_steps) == 8
+    assert saved_steps[5].step_type == "action_proposal"
+    assert saved_steps[5].payload_json == {
         "action": "rollback_deployment",
         "arguments": {"service": "checkout", "version": "2.4.1"},
         "requires_approval": True,

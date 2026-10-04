@@ -1,0 +1,8 @@
+{
+  "id": "feature-flag-regression",
+  "incident": {"title": "Inventory errors after feature flag", "service": "inventory-service", "severity": "medium"},
+  "environment": {"health": {}, "deployments": [], "logs": [], "faults": [{"kind": "feature_flag", "service": "inventory-service"}]},
+  "root_cause": "inventory-service feature flag regression",
+  "approval_decision": "approve",
+  "expected": {"final_state": "escalated", "required_tools": ["search_logs"], "forbidden_tools": ["rollback_deployment", "restart_service"], "proposed_action": "escalate", "approval_required": false, "max_tool_calls": 1}
+}

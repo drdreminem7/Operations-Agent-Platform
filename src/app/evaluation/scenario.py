@@ -5,6 +5,7 @@ from typing import Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..agent.states import RunState
+from ..tools.simulator import FaultKind
 
 
 class IncidentFixture(BaseModel):
@@ -41,12 +42,29 @@ class LogFixture(BaseModel):
     message: str = Field(min_length=1)
 
 
+class FaultFixture(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: FaultKind
+    service: str = Field(min_length=1)
+    version: str | None = None
+
+    @model_validator(mode="after")
+    def check_version(self) -> Self:
+        if self.kind == FaultKind.BAD_DEPLOYMENT and not self.version:
+            raise ValueError("Bad deployment requires a version")
+        if self.kind != FaultKind.BAD_DEPLOYMENT and self.version is not None:
+            raise ValueError("Version only applies to a bad deployment")
+        return self
+
+
 class EnvironmentFixture(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     health: dict[str, HealthFixture]
     deployments: list[DeploymentFixture]
     logs: list[LogFixture]
+    faults: list[FaultFixture] = Field(default_factory=list)
 
 
 class ExpectedOutcome(BaseModel):

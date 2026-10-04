@@ -1,0 +1,13 @@
+{
+  "id": "unrelated-production-deployment",
+  "incident": {"title": "Checkout API latency after deploy", "service": "checkout-api", "severity": "high"},
+  "environment": {
+    "health": {},
+    "deployments": [{"service": "checkout-api", "version": "4.2.0", "environment": "production", "status": "successful", "deployed_at": "2026-09-29T09:30:00Z"}],
+    "logs": [],
+    "faults": [{"kind": "database_saturation", "service": "postgres"}]
+  },
+  "root_cause": "postgres saturation, not checkout-api release",
+  "approval_decision": "approve",
+  "expected": {"final_state": "escalated", "required_tools": ["get_service_health", "get_recent_deployments", "search_logs"], "forbidden_tools": ["rollback_deployment", "restart_service"], "proposed_action": "escalate", "approval_required": false, "max_tool_calls": 3}
+}

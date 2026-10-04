@@ -22,7 +22,7 @@ from app.tools.simulator import Simulator
 def make_executing_run() -> tuple[AgentRunRepository, AgentEngine, AgentRun, Simulator]:
     with Session(engine) as session:
         incident = Incident(
-            title="Errors started after deployment",
+            title="Checkout latency after deployment",
             service="checkout",
             severity="high",
             status="open",
@@ -37,7 +37,7 @@ def make_executing_run() -> tuple[AgentRunRepository, AgentEngine, AgentRun, Sim
     run = AgentRun(
         run_id=run_id,
         incident_id=incident_id,
-        title="Errors started after deployment",
+        title="Checkout latency after deployment",
         service="checkout",
     )
     simulator = Simulator()
@@ -46,7 +46,7 @@ def make_executing_run() -> tuple[AgentRunRepository, AgentEngine, AgentRun, Sim
         ToolExecutor(create_default_registry(simulator)),
         repository,
     )
-    for _ in range(5):
+    for _ in range(7):
         asyncio.run(agent_engine.step(run))
     assert agent_engine.decide_approval(run, approved=True) == RunState.EXECUTING
     return repository, agent_engine, run, simulator

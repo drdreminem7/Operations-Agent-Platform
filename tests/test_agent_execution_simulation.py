@@ -18,11 +18,11 @@ def test_approved_proposal_executes_simulated_rollback_and_verifies() -> None:
     )
     run = AgentRun(
         incident_id=42,
-        title="Errors started after deployment",
+        title="Checkout latency after deployment",
         service="checkout",
     )
 
-    for _ in range(5):
+    for _ in range(7):
         asyncio.run(engine.step(run))
 
     assert run.current_state == RunState.AWAITING_APPROVAL
@@ -51,10 +51,10 @@ def test_verification_does_not_resolve_when_health_remains_degraded() -> None:
     )
     run = AgentRun(
         incident_id=43,
-        title="Errors started after deployment",
+        title="Checkout latency after deployment",
         service="checkout",
     )
-    for _ in range(5):
+    for _ in range(7):
         asyncio.run(engine.step(run))
     engine.decide_approval(run, approved=True)
     assert asyncio.run(engine.step(run)) == RunState.VERIFY
@@ -73,10 +73,10 @@ def test_stale_deployment_fails_without_retrying_automatically() -> None:
     )
     run = AgentRun(
         incident_id=44,
-        title="Errors started after deployment",
+        title="Checkout latency after deployment",
         service="checkout",
     )
-    for _ in range(5):
+    for _ in range(7):
         asyncio.run(engine.step(run))
     engine.decide_approval(run, approved=True)
     simulator.deployments[0]["status"] = "rolled_back"

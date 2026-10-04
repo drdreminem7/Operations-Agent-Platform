@@ -155,6 +155,10 @@ async def evaluate_scenario(
         deployment.model_dump() for deployment in scenario.environment.deployments
     ]
     simulator.logs = [log.model_dump() for log in scenario.environment.logs]
+    for fault in scenario.environment.faults:
+        simulator.inject_fault(
+            fault.kind, fault.service, version=fault.version
+        )
     executor = RecordingToolExecutor(create_default_registry(simulator))
     decisions = RecordingDecisionProvider(provider or DeterministicDecisionProvider())
     engine = AgentEngine(decisions, executor)

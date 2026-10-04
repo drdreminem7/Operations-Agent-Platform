@@ -6,9 +6,53 @@ services:
             POSTGRES_USER: operations
             POSTGRES_PASSWORD: operations
         ports:
-            - "5433:5432"
+            - "127.0.0.1:5433:5432"
         volumes:
             - postgres_data:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U operations -d operations"]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+
+    migrate:
+        build: .
+        command: ["alembic", "upgrade", "head"]
+        environment:
+            DATABASE_URL: postgresql+psycopg://operations:operations@postgres:5432/operations
+        depends_on:
+            postgres:
+                condition: service_healthy
+
+    api:
+        build: .
+        env_file: .env
+        environment:
+            DATABASE_URL: postgresql+psycopg://operations:operations@postgres:5432/operations
+        ports:
+            - "127.0.0.1:8000:8000"
+        depends_on:
+            migrate:
+                condition: service_completed_successfully
+        healthcheck:
+            test:
+                - CMD
+                - python
+                - -c
+                - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    worker:
+        build: .
+        command: ["python", "-m", "app.jobs.worker"]
+        env_file: .env
+        environment:
+            DATABASE_URL: postgresql+psycopg://operations:operations@postgres:5432/operations
+        depends_on:
+            migrate:
+                condition: service_completed_successfully
 
 volumes:
     postgres_data:

@@ -24,3 +24,21 @@ The `GET /runs/{run_id}/execution` endpoint exposes the execution row for local 
 The key is unique only within this database and includes the run ID. Starting a new run for the same incident creates a new key; cross-run deduplication is not implemented. The approval API uses a local shared secret rather than distinct authenticated operators, and the simulator is still not a real operations system.
 
 The crash-recovery tests cover the no-effect and effect-before-persistence windows, a tool exception, stale intent after approval expiry, and a database failure during the result/state/step transaction. In that transaction-failure test the simulated effect has happened, but all database result/state/step changes roll back. A later stale-intent check records `uncertain` without another tool call. The end-to-end test covers a committed result followed by a fresh engine performing verification rather than executing again. No local test can prove delivery semantics for a real remote provider.
+
+## Fault-injection coverage
+
+| Injected fault | Expected behavior | Test |
+|---|---|---|
+| Decision provider times out before a tool choice | No transition or evidence is committed; a later explicit retry can proceed. | `test_fault_injection.py::test_provider_timeout_does_not_commit_a_transition` |
+| Read tool exceeds its deadline | Tool error; run remains in `gather_context` without evidence. | `test_fault_injection.py::test_tool_fault_does_not_advance_run` |
+| Read tool returns another tool's name | Executor rejects the malformed result; no transition. | `test_fault_injection.py::test_tool_fault_does_not_advance_run` |
+| PostgreSQL connection fails during readiness | `/ready` returns 503 without a connection string. | `test_fault_injection.py::test_database_failure_returns_not_ready_without_exposing_connection` |
+| Write effect may have occurred before result persistence | Execution becomes uncertain after the stale threshold; no automatic replay. | `test_agent_crash_recovery.py` |
+| Approval is replayed or action arguments change | Approval is rejected and cannot authorize a different write. | `test_approvals.py` |
+| Worker lease expires or is claimed twice | Token fencing and row locking prevent two successful owners. | `test_job_queue.py` |
+| vLLM returns 429/500, malformed JSON, a partial/empty choice, or a connection error | Adapter reports a typed provider error without retrying or exposing the upstream body; the worker's existing bounded provider-error policy applies if a job is running. | `test_vllm_provider.py` |
+
+The suite does not kill an OS process, sever a real network connection, or
+exercise a live Gemini or vLLM 429/500 response in a deployed environment. Those
+failures need controlled integration infrastructure and should not be
+represented as covered by mocks alone.

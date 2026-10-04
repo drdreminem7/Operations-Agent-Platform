@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import math
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Protocol, TypeVar, cast
@@ -140,8 +141,8 @@ class GoogleGenAIStructuredOutputGenerator:
     ) -> None:
         if not model.strip():
             raise ValueError("Gemini model cannot be empty")
-        if timeout_seconds <= 0:
-            raise ValueError("Gemini timeout must be greater than zero")
+        if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+            raise ValueError("Gemini timeout must be greater than zero and finite")
         if generate_content is None:
             if not api_key.strip():
                 raise ValueError("Gemini API key cannot be empty")
@@ -259,9 +260,12 @@ class GoogleGenAIStructuredOutputGenerator:
         )
 
 
-class GeminiDecisionProvider:
-    def __init__(self, generator: StructuredOutputGenerator) -> None:
+class StructuredDecisionProvider:
+    def __init__(
+        self, generator: StructuredOutputGenerator, *, provider_name: str
+    ) -> None:
         self._generator = generator
+        self._provider_name = provider_name
 
     async def _generate_decision(
         self,
@@ -280,7 +284,7 @@ class GeminiDecisionProvider:
             with bind_context(model_name=generated.model):
                 log_event(logger, logging.WARNING, "model_decision_invalid")
             raise ModelProviderResponseError(
-                "Gemini returned an invalid decision"
+                f"{self._provider_name} returned an invalid decision"
             ) from error
 
     async def choose_tool(
@@ -318,7 +322,9 @@ class GeminiDecisionProvider:
             response_schema=GeminiToolDecision,
         )
         if decision.service != service:
-            raise ModelProviderResponseError("Gemini selected a different service")
+            raise ModelProviderResponseError(
+                f"{self._provider_name} selected a different service"
+            )
         if decision.tool_name == "get_service_health":
             arguments: dict[str, object] = {"service": decision.service}
         elif decision.tool_name == "search_logs":
@@ -373,7 +379,7 @@ class GeminiDecisionProvider:
         )
         if decision.service != service:
             raise ModelProviderResponseError(
-                "Gemini proposed an action for a different service"
+                f"{self._provider_name} proposed an action for a different service"
             )
         if decision.action == "rollback_deployment":
             known_versions = {
@@ -385,7 +391,8 @@ class GeminiDecisionProvider:
             }
             if decision.version not in known_versions:
                 raise ModelProviderResponseError(
-                    "Gemini proposed a deployment version absent from evidence"
+                    f"{self._provider_name} proposed a deployment version "
+                    "absent from evidence"
                 )
             action_arguments: dict[str, object] = {
                 "service": decision.service,
@@ -400,10 +407,9 @@ class GeminiDecisionProvider:
             trace=self._trace(generated),
         )
 
-    @staticmethod
-    def _trace(generated: GeneratedContent) -> DecisionTrace:
+    def _trace(self, generated: GeneratedContent) -> DecisionTrace:
         return DecisionTrace(
-            provider="gemini",
+            provider=self._provider_name.casefold(),
             model=generated.model,
             latency_ms=generated.latency_ms,
             input_tokens=generated.input_tokens,
@@ -417,3 +423,8 @@ class GeminiDecisionProvider:
         if not isinstance(deployments, list):
             return []
         return [item for item in deployments if isinstance(item, dict)]
+
+
+class GeminiDecisionProvider(StructuredDecisionProvider):
+    def __init__(self, generator: StructuredOutputGenerator) -> None:
+        super().__init__(generator, provider_name="Gemini")

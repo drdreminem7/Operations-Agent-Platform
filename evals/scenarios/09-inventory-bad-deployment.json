@@ -1,0 +1,8 @@
+{
+  "id": "inventory-bad-deployment",
+  "incident": {"title": "Inventory latency after deploy", "service": "inventory-service", "severity": "high", "description": "Inventory requests time out after release."},
+  "environment": {"health": {}, "deployments": [], "logs": [], "faults": [{"kind": "bad_deployment", "service": "inventory-service", "version": "3.0.0"}]},
+  "root_cause": "inventory-service production release 3.0.0",
+  "approval_decision": "approve",
+  "expected": {"final_state": "resolved", "required_tools": ["get_service_health", "get_recent_deployments", "search_logs"], "forbidden_tools": ["restart_service"], "proposed_action": "rollback_deployment", "approval_required": true, "max_tool_calls": 6}
+}

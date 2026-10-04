@@ -171,6 +171,8 @@ def test_generator_times_out() -> None:
         ("", "test-model", 30, "API key"),
         ("test-key", "", 30, "model"),
         ("test-key", "test-model", 0, "greater than zero"),
+        ("test-key", "test-model", float("nan"), "finite"),
+        ("test-key", "test-model", float("inf"), "finite"),
     ],
 )
 def test_generator_rejects_invalid_configuration(

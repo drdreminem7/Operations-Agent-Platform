@@ -14,6 +14,7 @@ dependencies = [
     "opentelemetry-sdk>=1.30,<2",
     "opentelemetry-exporter-otlp-proto-http>=1.30,<2",
     "prometheus-client>=0.20,<1",
+    "httpx>=0.28,<1",
 ]
 
 [tool.pytest.ini_options]
@@ -48,4 +49,7 @@ dev = [
     "mypy>=2.3.1",
     "pytest>=8.3",
     "ruff>=0.16.9",
+]
+experiment = [
+    "langgraph>=1.2.12",
 ]

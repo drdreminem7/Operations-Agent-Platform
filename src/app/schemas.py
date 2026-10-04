@@ -7,7 +7,7 @@ class IncidentCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     service: str = Field(min_length=1, max_length=100)
     severity: str = Field(min_length=1, max_length=20)
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=4000)
     started_at: datetime | None = None
     status: str = Field(default="open", min_length=1, max_length=20)
 
@@ -30,7 +30,7 @@ class IncidentUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     service: str | None = Field(default=None, min_length=1, max_length=100)
     severity: str | None = Field(default=None, min_length=1, max_length=20)
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=4000)
     status: str | None = Field(default=None, min_length=1, max_length=20)
     started_at: datetime | None = None
 

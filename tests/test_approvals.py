@@ -18,7 +18,7 @@ def create_waiting_run() -> tuple[int, int]:
     incident = client.post(
         "/incidents",
         json={
-            "title": "Errors started after deployment",
+            "title": "Checkout latency after deployment",
             "service": "checkout",
             "severity": "high",
         },
@@ -28,7 +28,7 @@ def create_waiting_run() -> tuple[int, int]:
     assert started.status_code == 201
     run_id = started.json()["id"]
 
-    for _ in range(5):
+    for _ in range(7):
         response = client.post(f"/runs/{run_id}/step")
         assert response.status_code == 200
 

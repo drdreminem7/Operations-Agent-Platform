@@ -1,61 +1,63 @@
-# Production AI Operations Agent Platform
+# Operations Agent Platform
 
-## Purpose
+A stateful incident-response system for a simulated software environment.
+Operators create incidents, start agent runs, review evidence and proposed
+actions, approve or deny simulated changes, and inspect the audit history.
+The application owns transitions, authorization, execution, and persistence;
+the decision provider cannot perform arbitrary actions.
 
-This project is a stateful incident-response system for a simulated software
-company. It helps an operator investigate incidents, gather evidence, choose
-actions, obtain approval for dangerous changes, execute approved actions, and
-verify outcomes.
+The platform runs with a deterministic decision provider by default. A Gemini
+provider is available when configured with an API key. Neither provider has
+access to real production infrastructure: health, deployments, logs, restart,
+and rollback tools operate on a local simulator.
 
-It is an agent platform rather than a chatbot because the application owns
-state, legal transitions, permissions, persistence, tool execution, retries,
-verification, and audit history. The language model is one decision-making
-component inside that controlled workflow.
+## What works
 
-## V0 charter
+- Incident creation, listing, retrieval, and partial update in PostgreSQL.
+- Manual or database-backed background agent runs with durable steps and jobs.
+- Read tools for simulated health, deployments, and logs; simulated restart
+  and rollback tools with server-owned permission checks.
+- Human approval records bound to a specific run, tool, and argument set.
+  Denial escalates the run; successful execution is independently verified.
+- Fail-closed recovery around write intents and worker leases. Uncertain
+  effects are not automatically retried.
+- Structured application logs, Prometheus metrics, and OpenTelemetry traces.
+- A 20-scenario, simulator-only evaluation suite and CI regression gate.
 
-V0 must support the complete conceptual flow:
+The incident path is: create incident → start run → gather evidence → propose
+action or escalate → request approval if required → execute a simulated action
+→ verify the result → record the final state. For deployment rollback, the
+application requires degraded health, a matching error log, and an active
+production deployment; a deployment mention alone is insufficient.
 
-1. Create an incident.
-2. Start an agent run.
-3. Gather evidence through explicit tools.
-4. Choose a next action.
-5. Require approval for dangerous actions.
-6. Execute approved tools.
-7. Store execution history.
-8. Show the final resolution.
+## Architecture and scope
 
-The first implementation will be deterministic and testable without a real
-LLM. Model integration comes later.
+`src/app/routes/` handles HTTP requests; `schemas.py` defines API contracts;
+`models.py` and Alembic migrations define persistent records. `agent/` owns
+state transitions, decisions, policy integration, and the repository.
+`tools/` contains the registry, executor, simulator, and bounded capabilities.
+`jobs/` runs background work; `observability/` records operational signals;
+`evaluation/` runs isolated scenarios. The
+[architecture guide](docs/architecture.md), [engineering journal](docs/engineering-journal.md),
+and [learning guide](docs/milestone-learning-guide.md) explain the file-level
+flow and trade-offs.
 
-## Safety and reliability requirements
-
-- Dangerous actions cannot execute without policy approval.
-- Every state transition is persisted.
-- Every tool call is auditable.
-- Model outputs are validated before use.
-- Failures cannot silently corrupt run state.
-
-## V0 non-goals
-
-Multi-region execution, Kubernetes, enterprise auth,
-real production infrastructure, autonomous shell access, arbitrary code
-execution, browser automation, multiple agents, and long-term semantic memory
-are explicitly deferred.
-
-## Project roadmap
-
-Milestone 0 defines this charter. Milestone 1 establishes the runnable
-repository and infrastructure baseline. Later milestones add incidents,
-tools, the deterministic agent engine, model providers, policy, approvals,
-durability, observability, evaluation, and hardening.
-
-The [engineering journal](docs/engineering-journal.md) records the implemented
-milestones, file-by-file flows, verification, and what you should be able to
-explain. The [learning guide](docs/milestone-learning-guide.md) expands on the
-concepts and later roadmap.
-The [evaluation guide](docs/evaluation.md) describes the current eight-case
-simulated benchmark, including a known unsafe rollback case.
+This is a runnable local research prototype, not a production operations
+controller. The approval API uses a shared key rather than individual identity;
+the simulator is not real infrastructure; and the evaluation dataset covers
+only 20 synthetic cases. See [evaluation](docs/evaluation.md) and the
+[failure model](docs/failure-model.md) for exact limits; see the
+[security model](docs/security.md) before exposing the API.
+The [performance baseline](docs/performance.md) records reproducible local
+control-plane measurements and their limits.
+An [isolated LangGraph comparison](docs/runtime-comparison.md) exercises the
+same simulated approval path without replacing the API runtime.
+The optional [model-routing mode](docs/model-routing.md) separates read-tool
+choice from action planning and fails closed on planning-provider errors.
+The [vLLM adapter](docs/self-hosted-model.md) has a tested HTTP contract but
+still needs a GPU-backed server for live quality and serving measurements.
+The [container deployment guide](docs/deployment.md) covers a local Compose
+stack for PostgreSQL, migrations, API, and worker.
 
 ## Local development
 
@@ -115,6 +117,11 @@ APP_NAME="Test Operations API" uv run uvicorn app.main:app --app-dir src --reloa
 
 The example database URL is `postgresql+psycopg://operations:operations@localhost:5433/operations`.
 
+For access outside localhost, configure `API_ACCESS_KEY` in `.env` and send it
+as `X-API-Key` on incident/run/metrics requests. This is a shared local key,
+not individual user authentication; approvals use a separate key. See the
+[security model](docs/security.md) for coverage and limits.
+
 ### Review a simulated action
 
 Set a long, random `APPROVAL_API_KEY` in your local `.env` and restart the API.
@@ -165,7 +172,28 @@ Prometheus scrape setup, trace propagation, and privacy limits.
 uv run ruff check .
 uv run mypy
 uv run pytest
+PYTHONPATH=src uv run python -m app.evaluation --baseline evals/baseline.json
 ```
+
+The evaluation command prints a JSON report and exits nonzero if its reviewed
+scenario set, expected outcomes, tool-use budget, or safety thresholds regress.
+CI uploads that report as an artifact. No PostgreSQL connection is needed for
+the evaluation itself; the full test suite does require PostgreSQL. The
+[evaluation guide](docs/evaluation.md) explains the metrics and coverage.
+
+### Run the complete local stack in Docker
+
+After creating `.env`, stop any host-side API on port 8000 and run:
+
+```bash
+docker compose up --build -d
+docker compose ps
+curl -i http://127.0.0.1:8000/ready
+```
+
+This starts PostgreSQL, applies migrations once, and runs the API and worker.
+See the [container deployment guide](docs/deployment.md) for configuration,
+logs, shutdown, and security limits. This is not a public-cloud deployment.
 
 ### Stop PostgreSQL
 

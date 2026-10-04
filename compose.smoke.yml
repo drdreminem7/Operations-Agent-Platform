@@ -1,0 +1,54 @@
+services:
+    postgres:
+        image: postgres:17-alpine
+        environment:
+            POSTGRES_DB: operations
+            POSTGRES_USER: operations
+            POSTGRES_PASSWORD: smoke-only
+        volumes:
+            - smoke_data:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U operations -d operations"]
+            interval: 2s
+            timeout: 3s
+            retries: 15
+
+    migrate:
+        build: .
+        command: ["alembic", "upgrade", "head"]
+        environment:
+            DATABASE_URL: postgresql+psycopg://operations:smoke-only@postgres:5432/operations
+        depends_on:
+            postgres:
+                condition: service_healthy
+
+    api:
+        build: .
+        environment:
+            DATABASE_URL: postgresql+psycopg://operations:smoke-only@postgres:5432/operations
+            DECISION_PROVIDER: deterministic
+        depends_on:
+            migrate:
+                condition: service_completed_successfully
+        healthcheck:
+            test:
+                - CMD
+                - python
+                - -c
+                - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)
+            interval: 2s
+            timeout: 3s
+            retries: 15
+
+    worker:
+        build: .
+        command: ["python", "-m", "app.jobs.worker"]
+        environment:
+            DATABASE_URL: postgresql+psycopg://operations:smoke-only@postgres:5432/operations
+            DECISION_PROVIDER: deterministic
+        depends_on:
+            migrate:
+                condition: service_completed_successfully
+
+volumes:
+    smoke_data:

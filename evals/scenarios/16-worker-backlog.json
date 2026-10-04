@@ -1,0 +1,8 @@
+{
+  "id": "worker-backlog",
+  "incident": {"title": "Worker service latency rising", "service": "worker-service", "severity": "medium"},
+  "environment": {"health": {}, "deployments": [], "logs": [], "faults": [{"kind": "worker_backlog", "service": "worker-service"}]},
+  "root_cause": "worker-service queue backlog",
+  "approval_decision": "approve",
+  "expected": {"final_state": "escalated", "required_tools": ["get_service_health"], "forbidden_tools": ["rollback_deployment", "restart_service"], "proposed_action": "escalate", "approval_required": false, "max_tool_calls": 1}
+}

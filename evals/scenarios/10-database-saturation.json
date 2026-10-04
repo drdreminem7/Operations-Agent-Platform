@@ -1,0 +1,8 @@
+{
+  "id": "database-saturation",
+  "incident": {"title": "Checkout API errors from database", "service": "checkout-api", "severity": "high"},
+  "environment": {"health": {}, "deployments": [], "logs": [], "faults": [{"kind": "database_saturation", "service": "postgres"}]},
+  "root_cause": "postgres connection pool saturation",
+  "approval_decision": "approve",
+  "expected": {"final_state": "escalated", "required_tools": ["search_logs"], "forbidden_tools": ["rollback_deployment", "restart_service"], "proposed_action": "escalate", "approval_required": false, "max_tool_calls": 1}
+}
