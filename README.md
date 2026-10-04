@@ -1,205 +1,129 @@
 # Operations Agent Platform
 
-A stateful incident-response system for a simulated software environment.
-Operators create incidents, start agent runs, review evidence and proposed
-actions, approve or deny simulated changes, and inspect the audit history.
-The application owns transitions, authorization, execution, and persistence;
-the decision provider cannot perform arbitrary actions.
+An incident-response API with persisted agent runs, bounded tools, human
+approval, and an auditable execution history. The platform investigates a
+simulated service environment; it does not connect to production monitoring or
+deployment systems.
 
-The platform runs with a deterministic decision provider by default. A Gemini
-provider is available when configured with an API key. Neither provider has
-access to real production infrastructure: health, deployments, logs, restart,
-and rollback tools operate on a local simulator.
+The default decision provider is deterministic, so the full workflow runs
+without a model API key. Gemini, routed Gemini, and vLLM-compatible providers
+can be selected through configuration. In every mode, the application—not the
+provider—owns tool permissions, state transitions, approvals, and execution.
 
-## What works
+## Features
 
-- Incident creation, listing, retrieval, and partial update in PostgreSQL.
-- Manual or database-backed background agent runs with durable steps and jobs.
-- Read tools for simulated health, deployments, and logs; simulated restart
-  and rollback tools with server-owned permission checks.
-- Human approval records bound to a specific run, tool, and argument set.
-  Denial escalates the run; successful execution is independently verified.
-- Fail-closed recovery around write intents and worker leases. Uncertain
-  effects are not automatically retried.
-- Structured application logs, Prometheus metrics, and OpenTelemetry traces.
-- A 20-scenario, simulator-only evaluation suite and CI regression gate.
+- Incident CRUD backed by PostgreSQL and Alembic migrations.
+- Manual and background agent runs with durable steps, job leases, and recovery
+  rules for interrupted work.
+- Typed, time-bounded tools for simulated health, logs, deployments, restart,
+  and rollback.
+- Approval records bound to the exact run, tool, and arguments before a
+  simulated write can execute.
+- Independent post-action verification; uncertain writes are not retried
+  automatically.
+- Structured logs, Prometheus metrics, OpenTelemetry traces, and a 20-scenario
+  evaluation gate in CI.
 
-The incident path is: create incident → start run → gather evidence → propose
-action or escalate → request approval if required → execute a simulated action
-→ verify the result → record the final state. For deployment rollback, the
-application requires degraded health, a matching error log, and an active
-production deployment; a deployment mention alone is insufficient.
+## Run with Docker Compose
 
-## Architecture and scope
-
-`src/app/routes/` handles HTTP requests; `schemas.py` defines API contracts;
-`models.py` and Alembic migrations define persistent records. `agent/` owns
-state transitions, decisions, policy integration, and the repository.
-`tools/` contains the registry, executor, simulator, and bounded capabilities.
-`jobs/` runs background work; `observability/` records operational signals;
-`evaluation/` runs isolated scenarios. The
-[architecture guide](docs/architecture.md), [engineering journal](docs/engineering-journal.md),
-and [learning guide](docs/milestone-learning-guide.md) explain the file-level
-flow and trade-offs.
-
-This is a runnable local research prototype, not a production operations
-controller. The approval API uses a shared key rather than individual identity;
-the simulator is not real infrastructure; and the evaluation dataset covers
-only 20 synthetic cases. See [evaluation](docs/evaluation.md) and the
-[failure model](docs/failure-model.md) for exact limits; see the
-[security model](docs/security.md) before exposing the API.
-The [performance baseline](docs/performance.md) records reproducible local
-control-plane measurements and their limits.
-An [isolated LangGraph comparison](docs/runtime-comparison.md) exercises the
-same simulated approval path without replacing the API runtime.
-The optional [model-routing mode](docs/model-routing.md) separates read-tool
-choice from action planning and fails closed on planning-provider errors.
-The [vLLM adapter](docs/self-hosted-model.md) has a tested HTTP contract but
-still needs a GPU-backed server for live quality and serving measurements.
-The [container deployment guide](docs/deployment.md) covers a local Compose
-stack for PostgreSQL, migrations, API, and worker.
-
-## Local development
-
-### Prerequisites
-
-- Python 3.12 or newer
-- [`uv`](https://docs.astral.sh/uv/)
-- Docker Desktop with Docker Compose
-
-### Start the project
-
-From the repository root, install the project and development dependencies:
+Requires Docker Desktop or Docker Engine with Compose. From the repository
+root, create `.env` from `.env.example` if you do not already have one. Set a
+long random `APPROVAL_API_KEY` to use the approval endpoints; set
+`API_ACCESS_KEY` if you want the local API's incident, run, and metrics routes
+to require `X-API-Key`.
 
 ```bash
-uv sync
-cp .env.example .env
-```
-
-Start PostgreSQL in Docker:
-
-```bash
-docker compose up -d postgres
+cp -n .env.example .env
+docker compose up --build -d
 docker compose ps
-uv run alembic upgrade head
-```
-
-The database is published on `localhost:5433`. The host port is 5433 because
-port 5432 may already be used by a locally installed PostgreSQL server. The
-container still listens on its standard internal port, 5432.
-
-In a separate terminal, start the API:
-
-```bash
-uv run uvicorn app.main:app --app-dir src --reload --env-file .env
-```
-
-The API listens at `http://127.0.0.1:8000`. Open `http://127.0.0.1:8000/docs`
-for the interactive API documentation.
-
-### Check the API
-
-```bash
 curl -i http://127.0.0.1:8000/health
 curl -i http://127.0.0.1:8000/ready
 ```
 
-`/health` reports whether the API process is running. `/ready` runs a small
-query against PostgreSQL and returns HTTP 503 when the database is unavailable.
+Compose starts PostgreSQL, applies migrations, then starts the API and worker.
+Open the [API documentation](http://127.0.0.1:8000/docs) for request and
+response schemas. Ports 8000 and 5433 must be available. The worker immediately
+processes any queued jobs already in the database; use the isolated smoke
+stack described in [deployment](docs/deployment.md) for a clean startup test.
 
-Edit `.env` to change `APP_NAME` or `DATABASE_URL`. The local `.env` file is
-ignored by Git. For a one-run title override, set `APP_NAME` before starting
-Uvicorn:
+Stop the stack with `docker compose down`. The named PostgreSQL volume remains;
+`down -v` would delete it.
 
-```bash
-APP_NAME="Test Operations API" uv run uvicorn app.main:app --app-dir src --reload --env-file .env
-```
+## Run from Python
 
-The example database URL is `postgresql+psycopg://operations:operations@localhost:5433/operations`.
-
-For access outside localhost, configure `API_ACCESS_KEY` in `.env` and send it
-as `X-API-Key` on incident/run/metrics requests. This is a shared local key,
-not individual user authentication; approvals use a separate key. See the
-[security model](docs/security.md) for coverage and limits.
-
-### Review a simulated action
-
-Set a long, random `APPROVAL_API_KEY` in your local `.env` and restart the API.
-After a deployment-related run reaches `awaiting_approval`, inspect pending
-requests and approve or deny a specific approval ID:
+Requires Python 3.12+, [`uv`](https://docs.astral.sh/uv/), and Docker for the
+local PostgreSQL container. Create `.env` first if needed, then:
 
 ```bash
-export APPROVAL_API_KEY="<same secret as in .env>"
-curl -H "X-Approval-Key: $APPROVAL_API_KEY" -H "X-Operator-ID: harry" http://127.0.0.1:8000/approvals/pending
-curl -X POST -H "X-Approval-Key: $APPROVAL_API_KEY" -H "X-Operator-ID: harry" http://127.0.0.1:8000/approvals/1/approve
+uv sync --group experiment
+docker compose up -d postgres
+uv run alembic upgrade head
+uv run uvicorn app.main:app --app-dir src --reload --env-file .env
 ```
 
-Replace `1` with an ID returned by the pending endpoint. Use `/deny` instead
-of `/approve` to reject it. This shared key is for local
-development; `X-Operator-ID` is an audit label, not authenticated identity.
-Approved actions execute only against the simulator. For a complete incident
-walkthrough, follow the [V1 demo](docs/demo-v1.md).
-The [failure model](docs/failure-model.md) explains crash windows and why an
-uncertain write is not automatically retried.
-
-### Run an incident in the background
-
-Start a worker in another terminal after applying migrations:
+To process background jobs, start a worker in another terminal:
 
 ```bash
 PYTHONPATH=src uv run --env-file .env python -m app.jobs.worker
 ```
 
-Create a run with `POST /incidents/{incident_id}/runs/background`, then inspect
-`GET /runs/{run_id}/job` and `GET /runs/{run_id}/steps`. The worker pauses for
-approval and resumes when the existing approval endpoint accepts the action.
-The original `/runs/{run_id}/step` endpoint remains available for manual
-walkthroughs. The [background execution guide](docs/background-execution.md)
-explains leases, retry limits, shutdown, and failure recovery.
+Do not start the Compose API and host-side Uvicorn on port 8000 at the same
+time. `/health` checks the process; `/ready` also checks PostgreSQL and returns
+503 when the database is unavailable.
 
-### Observe runs
+## Using the API
 
-The API exposes metrics at `http://127.0.0.1:8000/metrics`. Set
-`WORKER_METRICS_PORT=9001` in `.env` for a separate worker metrics endpoint.
-Application log events are JSON and responses include `X-Trace-ID`. Set
-`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` to export spans to a collector. The
-[observability guide](docs/observability.md) explains the Grafana dashboard,
-Prometheus scrape setup, trace propagation, and privacy limits.
+Create an incident with `POST /incidents`. Start a manual run with
+`POST /incidents/{incident_id}/runs` or enqueue a background run with
+`POST /incidents/{incident_id}/runs/background`. Inspect a run at
+`GET /runs/{run_id}` and its history at `GET /runs/{run_id}/steps`.
+Manual runs advance through `POST /runs/{run_id}/step`; background runs advance
+through the worker. When a write requires review, use
+`GET /approvals/pending` and `POST /approvals/{approval_id}/approve` or `/deny`.
 
-### Run quality checks
+Approval requests require `X-Approval-Key` and an `X-Operator-ID` audit label.
+The operator label is not authenticated identity. If `API_ACCESS_KEY` is set,
+send it as `X-API-Key` to incident, run, and metrics routes. See the
+[end-to-end walkthrough](docs/demo-v1.md),
+[background execution](docs/background-execution.md), and
+[security notes](docs/security.md) for the full behavior and limitations.
+
+## Providers and observability
+
+`DECISION_PROVIDER` accepts `deterministic` (default), `gemini`, `routed`, or
+`vllm`. Gemini modes need `GEMINI_API_KEY`; routed mode also needs distinct
+`GEMINI_TRIAGE_MODEL` and `GEMINI_PLANNING_MODEL` values. vLLM mode needs a
+reachable `VLLM_BASE_URL` and `VLLM_MODEL`. Model URLs inside Compose must be
+reachable from the container network, not just from the host. The
+[routing](docs/model-routing.md) and [self-hosted model](docs/self-hosted-model.md)
+guides cover configuration and measured limits.
+
+The API exposes `/metrics`; responses include `X-Trace-ID`. Application logs
+are structured JSON. An optional OTLP endpoint exports traces. See
+[observability](docs/observability.md) for metrics, dashboard setup, and trace
+propagation.
+
+## Verify
+
+With PostgreSQL running and migrations applied:
 
 ```bash
 uv run ruff check .
 uv run mypy
-uv run pytest
+uv run --group experiment pytest
 PYTHONPATH=src uv run python -m app.evaluation --baseline evals/baseline.json
 ```
 
-The evaluation command prints a JSON report and exits nonzero if its reviewed
-scenario set, expected outcomes, tool-use budget, or safety thresholds regress.
-CI uploads that report as an artifact. No PostgreSQL connection is needed for
-the evaluation itself; the full test suite does require PostgreSQL. The
-[evaluation guide](docs/evaluation.md) explains the metrics and coverage.
+The evaluation runs against isolated simulated incidents and does not need
+PostgreSQL. CI also builds and starts a disposable Compose stack. See
+[evaluation](docs/evaluation.md), [performance](docs/performance.md), and the
+[failure model](docs/failure-model.md) for methods and known gaps.
 
-### Run the complete local stack in Docker
+## Scope
 
-After creating `.env`, stop any host-side API on port 8000 and run:
-
-```bash
-docker compose up --build -d
-docker compose ps
-curl -i http://127.0.0.1:8000/ready
-```
-
-This starts PostgreSQL, applies migrations once, and runs the API and worker.
-See the [container deployment guide](docs/deployment.md) for configuration,
-logs, shutdown, and security limits. This is not a public-cloud deployment.
-
-### Stop PostgreSQL
-
-```bash
-docker compose stop postgres
-```
-
-Start it again with `docker compose start postgres`. The named Docker volume
-keeps the database data when the container is stopped.
+All health, log, deployment, restart, and rollback tools operate on a local
+simulator. The API and approval controls use shared keys rather than per-user
+identity, and the evaluation dataset contains synthetic cases. This repository
+is suitable for local experimentation, not unattended control of production
+infrastructure. Live model quality and self-hosted serving performance require
+separate validation before operational use.
