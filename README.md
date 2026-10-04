@@ -38,7 +38,7 @@ LLM. Model integration comes later.
 
 ## V0 non-goals
 
-Distributed execution, Kubernetes, multi-region deployment, enterprise auth,
+Multi-region execution, Kubernetes, enterprise auth,
 real production infrastructure, autonomous shell access, arbitrary code
 execution, browser automation, multiple agents, and long-term semantic memory
 are explicitly deferred.
@@ -49,6 +49,13 @@ Milestone 0 defines this charter. Milestone 1 establishes the runnable
 repository and infrastructure baseline. Later milestones add incidents,
 tools, the deterministic agent engine, model providers, policy, approvals,
 durability, observability, evaluation, and hardening.
+
+The [engineering journal](docs/engineering-journal.md) records the implemented
+milestones, file-by-file flows, verification, and what you should be able to
+explain. The [learning guide](docs/milestone-learning-guide.md) expands on the
+concepts and later roadmap.
+The [evaluation guide](docs/evaluation.md) describes the current eight-case
+simulated benchmark, including a known unsafe rollback case.
 
 ## Local development
 
@@ -72,6 +79,7 @@ Start PostgreSQL in Docker:
 ```bash
 docker compose up -d postgres
 docker compose ps
+uv run alembic upgrade head
 ```
 
 The database is published on `localhost:5433`. The host port is 5433 because
@@ -106,6 +114,50 @@ APP_NAME="Test Operations API" uv run uvicorn app.main:app --app-dir src --reloa
 ```
 
 The example database URL is `postgresql+psycopg://operations:operations@localhost:5433/operations`.
+
+### Review a simulated action
+
+Set a long, random `APPROVAL_API_KEY` in your local `.env` and restart the API.
+After a deployment-related run reaches `awaiting_approval`, inspect pending
+requests and approve or deny a specific approval ID:
+
+```bash
+export APPROVAL_API_KEY="<same secret as in .env>"
+curl -H "X-Approval-Key: $APPROVAL_API_KEY" -H "X-Operator-ID: harry" http://127.0.0.1:8000/approvals/pending
+curl -X POST -H "X-Approval-Key: $APPROVAL_API_KEY" -H "X-Operator-ID: harry" http://127.0.0.1:8000/approvals/1/approve
+```
+
+Replace `1` with an ID returned by the pending endpoint. Use `/deny` instead
+of `/approve` to reject it. This shared key is for local
+development; `X-Operator-ID` is an audit label, not authenticated identity.
+Approved actions execute only against the simulator. For a complete incident
+walkthrough, follow the [V1 demo](docs/demo-v1.md).
+The [failure model](docs/failure-model.md) explains crash windows and why an
+uncertain write is not automatically retried.
+
+### Run an incident in the background
+
+Start a worker in another terminal after applying migrations:
+
+```bash
+PYTHONPATH=src uv run --env-file .env python -m app.jobs.worker
+```
+
+Create a run with `POST /incidents/{incident_id}/runs/background`, then inspect
+`GET /runs/{run_id}/job` and `GET /runs/{run_id}/steps`. The worker pauses for
+approval and resumes when the existing approval endpoint accepts the action.
+The original `/runs/{run_id}/step` endpoint remains available for manual
+walkthroughs. The [background execution guide](docs/background-execution.md)
+explains leases, retry limits, shutdown, and failure recovery.
+
+### Observe runs
+
+The API exposes metrics at `http://127.0.0.1:8000/metrics`. Set
+`WORKER_METRICS_PORT=9001` in `.env` for a separate worker metrics endpoint.
+Application log events are JSON and responses include `X-Trace-ID`. Set
+`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` to export spans to a collector. The
+[observability guide](docs/observability.md) explains the Grafana dashboard,
+Prometheus scrape setup, trace propagation, and privacy limits.
 
 ### Run quality checks
 

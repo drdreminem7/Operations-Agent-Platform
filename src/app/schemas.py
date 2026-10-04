@@ -40,3 +40,76 @@ class IncidentUpdate(BaseModel):
         if value is None:
             raise ValueError("This field cannot be null")
         return value
+
+
+class AgentRunResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    incident_id: int
+    status: str
+    current_state: str
+    started_at: datetime
+    finished_at: datetime | None
+    created_at: datetime
+
+
+class RunStepResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    run_id: int
+    sequence_number: int
+    state_before: str
+    state_after: str
+    step_type: str
+    reason: str
+    payload_json: dict[str, object] | None
+    created_at: datetime
+
+
+class ApprovalResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    run_id: int
+    tool_name: str
+    arguments_json: dict[str, object]
+    action_hash: str
+    status: str
+    requested_at: datetime
+    expires_at: datetime
+    decided_at: datetime | None
+    decided_by: str | None
+
+
+class ActionExecutionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    run_id: int
+    idempotency_key: str
+    tool_name: str
+    arguments_json: dict[str, object]
+    status: str
+    result_json: dict[str, object] | None
+    error: str | None
+    started_at: datetime
+    finished_at: datetime | None
+
+
+class RunJobResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    run_id: int
+    status: str
+    attempts: int
+    failure_count: int
+    available_at: datetime
+    lease_owner: str | None
+    lease_until: datetime | None
+    heartbeat_at: datetime | None
+    last_error: str | None
+    created_at: datetime
+    updated_at: datetime

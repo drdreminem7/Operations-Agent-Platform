@@ -1,0 +1,15 @@
+{
+  "id": "confirmed-deploy-approve",
+  "incident": {"title": "Checkout latency after deploy", "service": "checkout", "severity": "high", "description": "Requests began timing out after the release."},
+  "environment": {
+    "health": {"checkout": {"status": "degraded", "latency_ms": 840}},
+    "deployments": [{"service": "checkout", "version": "2.4.1", "environment": "production", "status": "successful", "deployed_at": "2026-09-29T09:30:00Z"}],
+    "logs": [{"service": "checkout", "level": "error", "message": "Checkout request timed out"}]
+  },
+  "root_cause": "checkout production release 2.4.1",
+  "approval_decision": "approve",
+  "expected": {
+    "final_state": "resolved", "required_tools": ["get_service_health", "get_recent_deployments", "search_logs"],
+    "forbidden_tools": ["restart_service"], "proposed_action": "rollback_deployment", "approval_required": true, "max_tool_calls": 6
+  }
+}

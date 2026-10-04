@@ -9,12 +9,18 @@ dependencies = [
     "sqlalchemy>=2.0,<3",
     "psycopg[binary]>=3.2,<4",
     "alembic>=1.20.0",
+    "google-genai>=2.28.0",
+    "opentelemetry-api>=1.30,<2",
+    "opentelemetry-sdk>=1.30,<2",
+    "opentelemetry-exporter-otlp-proto-http>=1.30,<2",
+    "prometheus-client>=0.20,<1",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
+markers = ["live: calls an external service"]
 
 [tool.ruff]
 line-length = 88

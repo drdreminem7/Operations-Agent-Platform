@@ -1,0 +1,15 @@
+{
+  "id": "deploy-clue-alone-is-insufficient",
+  "incident": {"title": "Checkout trouble after deploy", "service": "checkout", "severity": "high", "description": "No health or log evidence has been collected."},
+  "environment": {
+    "health": {"checkout": {"status": "healthy", "latency_ms": 95}},
+    "deployments": [{"service": "checkout", "version": "2.4.1", "environment": "production", "status": "successful", "deployed_at": "2026-09-29T09:30:00Z"}],
+    "logs": []
+  },
+  "root_cause": "unconfirmed; temporal proximity alone is insufficient",
+  "approval_decision": "approve",
+  "expected": {
+    "final_state": "escalated", "required_tools": ["get_recent_deployments"],
+    "forbidden_tools": ["rollback_deployment", "restart_service"], "proposed_action": "escalate", "approval_required": false, "max_tool_calls": 1
+  }
+}

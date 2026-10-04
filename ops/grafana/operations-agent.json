@@ -1,0 +1,113 @@
+{
+  "uid": "operations-agent",
+  "title": "Operations Agent Platform",
+  "tags": ["operations", "agent"],
+  "timezone": "browser",
+  "schemaVersion": 40,
+  "version": 1,
+  "refresh": "10s",
+  "time": {"from": "now-1h", "to": "now"},
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Active runs",
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+      "targets": [{"expr": "max(active_runs)", "refId": "A"}]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Completed runs (1h)",
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+      "targets": [{"expr": "sum(increase(agent_runs_completed_total[1h]))", "refId": "A"}]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Failed runs (1h)",
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "gridPos": {"h": 5, "w": 6, "x": 12, "y": 0},
+      "targets": [{"expr": "sum(increase(agent_runs_failed_total[1h]))", "refId": "A"}]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Run duration p95",
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "s"}},
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(agent_run_duration_seconds_bucket[5m])))", "refId": "A"}]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Model calls and errors per second",
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+      "targets": [
+        {"expr": "sum(rate(model_calls_total[5m]))", "legendFormat": "calls", "refId": "A"},
+        {"expr": "sum(rate(model_errors_total[5m]))", "legendFormat": "errors", "refId": "B"}
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Model input and output tokens per second",
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+      "targets": [
+        {"expr": "sum(rate(model_input_tokens_total[5m]))", "legendFormat": "input", "refId": "A"},
+        {"expr": "sum(rate(model_output_tokens_total[5m]))", "legendFormat": "output", "refId": "B"}
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Tool calls and failures per second",
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 13},
+      "targets": [
+        {"expr": "sum by (tool_name) (rate(tool_calls_total[5m]))", "legendFormat": "{{tool_name}} calls", "refId": "A"},
+        {"expr": "sum by (tool_name) (rate(tool_call_failures_total[5m]))", "legendFormat": "{{tool_name}} failures", "refId": "B"}
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Approvals and policy denials",
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 13},
+      "targets": [
+        {"expr": "sum(rate(approval_requests_total[5m]))", "legendFormat": "requests", "refId": "A"},
+        {"expr": "sum(rate(approval_denials_total[5m]))", "legendFormat": "denials", "refId": "B"},
+        {"expr": "sum(rate(policy_denials_total[5m]))", "legendFormat": "policy denials", "refId": "C"}
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Model and HTTP latency p95",
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 21},
+      "fieldConfig": {"defaults": {"unit": "s"}},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum by (le) (rate(model_call_duration_seconds_bucket[5m])))", "legendFormat": "model", "refId": "A"},
+        {"expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))", "legendFormat": "HTTP", "refId": "B"}
+      ]
+    }
+  ]
+}
